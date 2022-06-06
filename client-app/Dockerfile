@@ -1,12 +1,30 @@
-FROM node:latest
+# STAGE 1 - BUILD ARTEFACTS
+FROM node:14-alpine as build-deps
 
-# set working directory
+# Change working directory
 WORKDIR /app
 
-# add `/app/node_modules/.bin` to $PATH
-ENV PATH /app/node_modules/.bin:$PATH
+RUN apk update && apk upgrade
 
-# install and cache app dependencies
-COPY package.json /app/package.json
-RUN npm install --silent
-RUN npm install react-scripts@3.0.1 -g --silent
+# Copy source code
+COPY . /app
+
+# Install dependencies
+RUN npm install -g npm@latest
+RUN npm install lodash.throttle
+
+RUN npm run build
+
+# STAGE 2 - PRODUCTION ENVIRONMENT
+FROM nginx:1.19-alpine
+
+COPY --from=build-deps /app/build /usr/share/nginx/html
+# REMOVE default nginx configuration file
+RUN rm /etc/nginx/conf.d/default.conf
+# REPLACE with custom one
+COPY nginx/nginx.conf /etc/nginx/conf.d
+# expose port 80 to the outer world
+EXPOSE 80
+# start nginx 
+CMD ["nginx", "-g", "daemon off;"]
+
